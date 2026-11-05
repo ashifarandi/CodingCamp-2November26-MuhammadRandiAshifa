@@ -11,22 +11,21 @@
 
         <!-- Header Card -->
         <header class="card header-card">
-            <!-- hidden controls kept so JS can find them without errors -->
-            <div class="header-controls" style="visibility:hidden">
-                <button id="settingsBtn" class="icon-btn" aria-label="Open name settings">
+            <div class="header-controls">
+                <button id="settingsBtn" class="icon-btn" title="Set your name" aria-label="Open name settings">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
                         <circle cx="12" cy="8" r="4"/>
                         <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
                     </svg>
                 </button>
-                <button id="themeToggle" class="icon-btn" aria-label="Toggle dark mode">&#9790;</button>
+                <button id="themeToggle" class="icon-btn" title="Toggle dark mode" aria-label="Toggle dark mode">&#9790;</button>
             </div>
             <div class="time-display" id="timeDisplay">00:00:00</div>
             <div class="date-display" id="dateDisplay">Loading...</div>
             <div class="greeting"    id="greeting">Good Morning</div>
         </header>
 
-        <!-- Settings Panel (hidden) -->
+        <!-- Settings Panel (hidden by default, toggled by settingsBtn) -->
         <div class="card settings-panel" id="settingsPanel" hidden>
             <h2 class="card-title">Settings</h2>
             <div class="settings-row">
@@ -53,8 +52,8 @@
                         <button type="button" id="stopTimer"  class="btn btn-outline">Stop</button>
                         <button type="button" id="resetTimer" class="btn btn-outline">Reset</button>
                     </div>
-                    <!-- hidden pomodoro setter — kept so JS finds the elements -->
-                    <div class="pomodoro-set" style="display:none">
+                    <!-- Pomodoro duration setter -->
+                    <div class="pomodoro-set">
                         <label for="pomodoroDuration">Duration (min)</label>
                         <input type="number" id="pomodoroDuration" min="1" max="120" value="25">
                         <button id="setDurationBtn" class="btn btn-outline">Set</button>
