@@ -1,1119 +1,413 @@
-// Todo List Life Dashboard - Main Application
-// Uses ES6+ features with module pattern organization
-
-// Global application namespace
-const TodoDashboard = (function() {
+// Todo List Life Dashboard
+const TodoDashboard = (function () {
     'use strict';
 
     // ==================== Storage Module ====================
-    const StorageModule = (function() {
-        const STORAGE_PREFIX = 'todoDashboard_';
-        const MAX_STORAGE_SIZE = 5 * 1024 * 1024; // 5MB
+    const StorageModule = (function () {
+        const PREFIX = 'todoDashboard_';
         const MAX_TASKS = 100;
-        const MAX_DESCRIPTION_LENGTH = 255;
-        
-        // In-memory fallback storage
-        let memoryStorage = {};
-        
-        /**
-         * Check if Local Storage is available
-         * @returns {boolean}
-         */
-        function isStorageAvailable() {
+        const MAX_DESC = 255;
+        let mem = {};
+
+        function available() {
             try {
-                const testKey = STORAGE_PREFIX + '_test';
-                window.localStorage.setItem(testKey, 'test');
-                window.localStorage.removeItem(testKey);
+                localStorage.setItem(PREFIX + '_t', '1');
+                localStorage.removeItem(PREFIX + '_t');
                 return true;
-            } catch (e) {
-                return false;
-            }
+            } catch (e) { return false; }
         }
-        
-        /**
-         * Get storage key with prefix
-         * @param {string} key - Base key name
-         * @returns {string}
-         */
-        function getStorageKey(key) {
-            return STORAGE_PREFIX + key;
-        }
-        
-        /**
-         * Get item from storage
-         * @param {string} key - Storage key
-         * @returns {any|null}
-         */
-        function getItem(key) {
-            const storageKey = getStorageKey(key);
+        function key(k) { return PREFIX + k; }
+        function getItem(k) {
             try {
-                if (isStorageAvailable()) {
-                    const value = window.localStorage.getItem(storageKey);
-                    return value ? JSON.parse(value) : null;
-                } else {
-                    return memoryStorage[storageKey] ? JSON.parse(memoryStorage[storageKey]) : null;
-                }
-            } catch (error) {
-                console.error('Error getting item:', error);
-                return null;
-            }
+                const v = available() ? localStorage.getItem(key(k)) : mem[key(k)];
+                return v ? JSON.parse(v) : null;
+            } catch (e) { return null; }
         }
-        
-        /**
-         * Set item in storage
-         * @param {string} key - Storage key
-         * @param {any} value - Value to store
-         * @returns {boolean}
-         */
-        function setItem(key, value) {
-            const storageKey = getStorageKey(key);
+        function setItem(k, v) {
             try {
-                const jsonValue = JSON.stringify(value);
-                
-                // Check storage size if Local Storage is available
-                if (isStorageAvailable()) {
-                    // Estimate current storage size
-                    const storageSize = getStorageSize();
-                    if (storageSize + jsonValue.length > MAX_STORAGE_SIZE) {
-                        // Attempt cleanup
-                        if (!clearOldEntries()) {
-                            throw new Error('Storage quota exceeded');
-                        }
-                    }
-                    window.localStorage.setItem(storageKey, jsonValue);
-                } else {
-                    memoryStorage[storageKey] = jsonValue;
-                }
+                const s = JSON.stringify(v);
+                available() ? localStorage.setItem(key(k), s) : (mem[key(k)] = s);
                 return true;
-            } catch (error) {
-                console.error('Error setting item:', error);
-                showError('Unable to save data. Please try again.');
-                return false;
-            }
+            } catch (e) { return false; }
         }
-        
-        /**
-         * Remove item from storage
-         * @param {string} key - Storage key
-         * @returns {boolean}
-         */
-        function removeItem(key) {
-            const storageKey = getStorageKey(key);
+        function removeItem(k) {
             try {
-                if (isStorageAvailable()) {
-                    window.localStorage.removeItem(storageKey);
-                } else {
-                    delete memoryStorage[storageKey];
-                }
+                available() ? localStorage.removeItem(key(k)) : delete mem[key(k)];
                 return true;
-            } catch (error) {
-                console.error('Error removing item:', error);
-                return false;
-            }
+            } catch (e) { return false; }
         }
-        
-        /**
-         * Get current storage size in bytes
-         * @returns {number}
-         */
-        function getStorageSize() {
-            if (!isStorageAvailable()) {
-                return 0;
-            }
-            
-            let totalSize = 0;
-            for (let i = 0; i < window.localStorage.length; i++) {
-                const key = window.localStorage.key(i);
-                if (key && key.startsWith(STORAGE_PREFIX)) {
-                    totalSize += window.localStorage.getItem(key).length;
-                }
-            }
-            return totalSize;
+        return { getItem, setItem, removeItem, MAX_TASKS, MAX_DESC };
+    })();
+
+    // ==================== Settings Module ====================
+    // Manages: custom name, dark mode, pomodoro duration
+    const SettingsModule = (function () {
+        const STORAGE_KEY = 'settings';
+        const DEFAULTS = { name: '', theme: 'light', pomodoro: 25 };
+        let settings = Object.assign({}, DEFAULTS, StorageModule.getItem(STORAGE_KEY) || {});
+
+        function save() { StorageModule.setItem(STORAGE_KEY, settings); }
+
+        function getName()      { return settings.name; }
+        function setName(n)     { settings.name = n.trim(); save(); }
+        function getTheme()     { return settings.theme; }
+        function setTheme(t)    { settings.theme = t; save(); }
+        function getPomodoro()  { return settings.pomodoro; }
+        function setPomodoro(m) { settings.pomodoro = Math.max(1, Math.min(120, Number(m))); save(); }
+
+        return { getName, setName, getTheme, setTheme, getPomodoro, setPomodoro };
+    })();
+
+    // ==================== Theme Module ====================
+    const ThemeModule = (function () {
+        function apply(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            const btn = document.getElementById('themeToggle');
+            if (btn) btn.textContent = theme === 'dark' ? '\u2600' : '\u263D'; // ☀ / ☽
         }
-        
-        /**
-         * Clear old entries if storage is full
-         * @returns {boolean}
-         */
-        function clearOldEntries() {
-            if (!isStorageAvailable()) {
-                return false;
-            }
-            
-            // This is a simple implementation - in production, 
-            // you might want to implement more sophisticated cleanup
-            return false;
+        function toggle() {
+            const next = SettingsModule.getTheme() === 'dark' ? 'light' : 'dark';
+            SettingsModule.setTheme(next);
+            apply(next);
         }
-        
-        /**
-         * Clear all storage
-         */
-        function clearAll() {
-            try {
-                if (isStorageAvailable()) {
-                    const keysToRemove = [];
-                    for (let i = 0; i < window.localStorage.length; i++) {
-                        const key = window.localStorage.key(i);
-                        if (key && key.startsWith(STORAGE_PREFIX)) {
-                            keysToRemove.push(key);
-                        }
-                    }
-                    keysToRemove.forEach(key => window.localStorage.removeItem(key));
-                } else {
-                    memoryStorage = {};
-                }
-            } catch (error) {
-                console.error('Error clearing storage:', error);
-            }
+        function initialize() {
+            apply(SettingsModule.getTheme());
+            document.getElementById('themeToggle').addEventListener('click', toggle);
         }
-        
-        // Public API
-        return {
-            isStorageAvailable: isStorageAvailable,
-            getItem: getItem,
-            setItem: setItem,
-            removeItem: removeItem,
-            getStorageSize: getStorageSize,
-            clearAll: clearAll,
-            STORAGE_PREFIX: STORAGE_PREFIX,
-            MAX_TASKS: MAX_TASKS,
-            MAX_DESCRIPTION_LENGTH: MAX_DESCRIPTION_LENGTH
-        };
+        return { initialize };
     })();
 
     // ==================== Time Module ====================
-    const TimeModule = (function() {
-        const STORAGE_KEY = 'timeSettings';
-        
-        /**
-         * Format date to MM/DD/YYYY
-         * @param {Date} date - Date object
-         * @returns {string} Formatted date string or error message for invalid dates
-         */
-        function formatDate(date) {
-            // Handle null, undefined, or non-Date objects
-            if (!date || typeof date !== 'object' || !date.getDate) {
-                return 'Invalid Date';
-            }
-            
-            // Check if date is valid (NaN check for getTime())
-            if (isNaN(date.getTime())) {
-                return 'Invalid Date';
-            }
-            
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
-            const year = date.getFullYear();
-            return `${month}/${day}/${year}`;
+    const TimeModule = (function () {
+        function formatDate(d) {
+            if (!d || isNaN(d.getTime())) return '';
+            return d.toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
         }
-        
-        /**
-         * Format time to HH:MM AM/PM
-         * @param {Date} date - Date object
-         * @returns {string} Formatted time string or error message for invalid dates
-         */
-        function formatTime(date) {
-            // Handle null, undefined, or non-Date objects
-            if (!date || typeof date !== 'object' || !date.getDate) {
-                return 'Invalid Time';
-            }
-            
-            // Check if date is valid (NaN check for getTime())
-            if (isNaN(date.getTime())) {
-                return 'Invalid Time';
-            }
-            
-            let hours = date.getHours();
-            const minutes = String(date.getMinutes()).padStart(2, '0');
-            const ampm = hours >= 12 ? 'PM' : 'AM';
-            hours = hours % 12;
-            hours = hours ? hours : 12; // Handle midnight
-            return `${hours}:${minutes} ${ampm}`;
+        function formatTime(d) {
+            if (!d || isNaN(d.getTime())) return '';
+            return [d.getHours(), d.getMinutes(), d.getSeconds()]
+                .map(n => String(n).padStart(2, '0')).join(':');
         }
-        
-        /**
-         * Get time-appropriate greeting
-         * @param {Date} date - Date object
-         * @returns {string}
-         */
-        function getGreeting(date) {
-            const hour = date.getHours();
-            
-            if (hour >= 5 && hour < 12) {
-                return 'Good Morning';
-            } else if (hour >= 12 && hour < 18) {
-                return 'Good Afternoon';
-            } else if (hour >= 18 && hour < 23) {
-                return 'Good Evening';
-            } else {
-                return 'Good Night';
-            }
+        function greetingWord(d) {
+            const h = d.getHours();
+            if (h >= 5  && h < 12) return 'Good Morning';
+            if (h >= 12 && h < 18) return 'Good Afternoon';
+            if (h >= 18 && h < 23) return 'Good Evening';
+            return 'Good Night';
         }
-        
-        /**
-         * Update time display in DOM
-         */
-        function updateTimeDisplay() {
-            // Check if Date API is available
-            if (typeof Date === 'undefined') {
-                console.error('Date API not available in this browser');
-                return;
-            }
-            
-            try {
-                const now = new Date();
-                document.getElementById('dateDisplay').textContent = formatDate(now);
-                document.getElementById('timeDisplay').textContent = formatTime(now);
-                document.getElementById('greeting').textContent = getGreeting(now);
-            } catch (error) {
-                console.error('Error updating time display:', error);
-            }
-        }
-        
-        /**
-         * Initialize time tracking with minute-interval updates
-         */
-        function initializeTimeTracking() {
-            // Check if Date API is available
-            if (typeof Date === 'undefined') {
-                console.error('Date API not available - time tracking disabled');
-                return;
-            }
-            
-            // Update immediately
-            updateTimeDisplay();
-            
-            // Update every minute (60000 milliseconds)
-            const timeInterval = setInterval(updateTimeDisplay, 60000);
-            
-            // Update at the start of each minute to handle cases where
-            // the page was open when the minute changed
+        function updateDisplay() {
             const now = new Date();
-            const secondsUntilNextMinute = 60 - now.getSeconds();
-            
-            setTimeout(() => {
-                updateTimeDisplay();
-            }, secondsUntilNextMinute * 1000);
+            document.getElementById('timeDisplay').textContent = formatTime(now);
+            document.getElementById('dateDisplay').textContent = formatDate(now);
+            const name = SettingsModule.getName();
+            const word = greetingWord(now);
+            document.getElementById('greeting').textContent = name ? `${word}, ${name}!` : word;
         }
-        
-        // Public API
-        return {
-            formatDate: formatDate,
-            formatTime: formatTime,
-            getGreeting: getGreeting,
-            updateTimeDisplay: updateTimeDisplay,
-            initializeTimeTracking: initializeTimeTracking
-        };
+        function initialize() {
+            updateDisplay();
+            setInterval(updateDisplay, 1000);
+        }
+        return { initialize, updateDisplay };
     })();
 
     // ==================== Timer Module ====================
-    const TimerModule = (function() {
+    const TimerModule = (function () {
         const STORAGE_KEY = 'timerState';
-        const DEFAULT_DURATION = 25 * 60; // 25 minutes in seconds
-        
-        let timerInterval = null;
-        let timeRemaining = DEFAULT_DURATION;
-        let isRunning = false;
-        
-        /**
-         * Parse time remaining to MM:SS format
-         * @param {number} seconds - Seconds remaining
-         * @returns {string}
-         */
-        function formatTime(seconds) {
-            const mins = Math.floor(seconds / 60);
-            const secs = seconds % 60;
-            return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        let duration    = SettingsModule.getPomodoro() * 60;
+        let remaining   = duration;
+        let interval    = null;
+        let running     = false;
+
+        function fmt(s) {
+            return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
         }
-        
-        /**
-         * Update timer display in DOM
-         */
-        function updateTimerDisplay() {
-            document.getElementById('timer').textContent = formatTime(timeRemaining);
+        function updateDisplay() {
+            document.getElementById('timer').textContent = fmt(remaining);
         }
-        
-        /**
-         * Start the timer
-         */
+        function saveState() {
+            StorageModule.setItem(STORAGE_KEY, { remaining, running });
+        }
         function startTimer() {
-            if (isRunning) {
-                return; // Idempotent - do nothing if already running
-            }
-            
-            isRunning = true;
-            timerInterval = setInterval(() => {
-                timeRemaining--;
-                updateTimerDisplay();
-                
-                if (timeRemaining <= 0) {
-                    handleTimerComplete();
-                }
+            if (running) return;
+            running = true;
+            interval = setInterval(() => {
+                remaining--;
+                updateDisplay();
+                if (remaining <= 0) complete();
             }, 1000);
-            
-            // Save timer state
-            saveTimerState();
+            saveState();
         }
-        
-        /**
-         * Stop the timer
-         */
         function stopTimer() {
-            if (!isRunning) {
-                return; // Idempotent - do nothing if already stopped
-            }
-            
-            clearInterval(timerInterval);
-            timerInterval = null;
-            isRunning = false;
-            
-            // Save timer state
-            saveTimerState();
+            if (!running) return;
+            clearInterval(interval); interval = null; running = false;
+            saveState();
         }
-        
-        /**
-         * Reset the timer to default duration
-         */
         function resetTimer() {
             stopTimer();
-            timeRemaining = DEFAULT_DURATION;
-            updateTimerDisplay();
-            
-            // Clear timer state
+            remaining = duration;
+            updateDisplay();
             StorageModule.removeItem(STORAGE_KEY);
         }
-        
-        /**
-         * Handle timer completion
-         */
-        function handleTimerComplete() {
+        function complete() {
+            stopTimer(); remaining = 0; updateDisplay();
+            const el = document.getElementById('timer');
+            el.style.color = '#2ecc71';
+            setTimeout(() => el.style.color = '', 3000);
+        }
+        function setDuration(mins) {
+            const wasRunning = running;
             stopTimer();
-            timeRemaining = 0;
-            updateTimerDisplay();
-            
-            // Play completion sound or show notification
-            // For now, just update display
-            document.getElementById('timer').style.color = 'var(--success-color)';
-            setTimeout(() => {
-                document.getElementById('timer').style.color = 'var(--text-primary)';
-            }, 2000);
+            duration  = mins * 60;
+            remaining = duration;
+            SettingsModule.setPomodoro(mins);
+            updateDisplay();
+            if (wasRunning) startTimer();
         }
-        
-        /**
-         * Save timer state to storage
-         */
-        function saveTimerState() {
-            const state = {
-                timeRemaining: timeRemaining,
-                isRunning: isRunning
-            };
-            StorageModule.setItem(STORAGE_KEY, state);
-        }
-        
-        /**
-         * Load timer state from storage
-         */
-        function loadTimerState() {
-            const state = StorageModule.getItem(STORAGE_KEY);
-            if (state) {
-                timeRemaining = state.timeRemaining || DEFAULT_DURATION;
-                isRunning = state.isRunning || false;
-                
-                if (isRunning) {
-                    // Restart the timer
-                    startTimer();
-                }
-            }
-        }
-        
-        /**
-         * Initialize timer module
-         */
         function initialize() {
-            loadTimerState();
-            
-            // Set up event listeners
+            // Restore saved state
+            const s = StorageModule.getItem(STORAGE_KEY);
+            if (s) {
+                remaining = s.remaining ?? duration;
+                if (s.running) startTimer();
+            }
+            updateDisplay();
+            // Sync duration input
+            document.getElementById('pomodoroDuration').value = SettingsModule.getPomodoro();
+
             document.getElementById('startTimer').addEventListener('click', startTimer);
             document.getElementById('stopTimer').addEventListener('click', stopTimer);
             document.getElementById('resetTimer').addEventListener('click', resetTimer);
+            document.getElementById('setDurationBtn').addEventListener('click', () => {
+                const v = parseInt(document.getElementById('pomodoroDuration').value, 10);
+                if (!isNaN(v) && v >= 1 && v <= 120) {
+                    setDuration(v);
+                }
+            });
         }
-        
-        // Public API
-        return {
-            startTimer: startTimer,
-            stopTimer: stopTimer,
-            resetTimer: resetTimer,
-            initialize: initialize
-        };
+        return { initialize };
     })();
 
     // ==================== Task Module ====================
-    const TaskModule = (function() {
+    const TaskModule = (function () {
         const STORAGE_KEY = 'tasks';
-        
-        // Load tasks from storage
-        let tasks = StorageModule.getItem(STORAGE_KEY) || [];
-        
-        /**
-         * Generate unique ID
-         * @returns {string}
-         */
-        function generateId() {
-            return Date.now().toString(36) + Math.random().toString(36).substr(2);
-        }
-        
-        /**
-         * Validate task description
-         * @param {string} description - Task description
-         * @returns {string|null} - Error message or null if valid
-         */
-        function validateDescription(description) {
-            if (!description || description.trim() === '') {
-                return 'Task description cannot be empty';
-            }
-            
-            const trimmedDescription = description.trim();
-            if (trimmedDescription.length > StorageModule.MAX_DESCRIPTION_LENGTH) {
-                return `Description must be ${StorageModule.MAX_DESCRIPTION_LENGTH} characters or less`;
-            }
-            
+        let tasks    = StorageModule.getItem(STORAGE_KEY) || [];
+        function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
+
+        function validate(desc) {
+            if (!desc || !desc.trim()) return 'Task description cannot be empty.';
+            if (desc.trim().length > StorageModule.MAX_DESC) return `Max ${StorageModule.MAX_DESC} characters.`;
             return null;
         }
-        
-        /**
-         * Add a new task
-         * @param {string} description - Task description
-         * @returns {object|null} - Created task or null if failed
-         */
-        function addTask(description) {
-            // Validate description
-            const error = validateDescription(description);
-            if (error) {
-                showError(error);
-                return null;
-            }
-            
-            // Check task limit
-            if (tasks.length >= StorageModule.MAX_TASKS) {
-                showError(`Maximum of ${StorageModule.MAX_TASKS} tasks reached`);
-                return null;
-            }
-            
-            const task = {
-                id: generateId(),
-                description: description.trim(),
-                completed: false,
-                createdAt: new Date().toISOString()
-            };
-            
-            tasks.push(task);
-            saveTasks();
-            
-            // Update UI
-            renderTasks();
-            
-            return task;
-        }
-        
-        /**
-         * Edit a task
-         * @param {string} taskId - Task ID
-         * @param {string} newDescription - New task description
-         * @returns {boolean}
-         */
-        function editTask(taskId, newDescription) {
-            const task = tasks.find(t => t.id === taskId);
-            if (!task) {
-                showError('Task not found');
-                return false;
-            }
-            
-            // Validate new description
-            const error = validateDescription(newDescription);
-            if (error) {
-                showError(error);
-                return false;
-            }
-            
-            task.description = newDescription.trim();
-            saveTasks();
-            
-            // Update UI
-            renderTasks();
-            
-            return true;
-        }
-        
-        /**
-         * Toggle task completion status
-         * @param {string} taskId - Task ID
-         * @returns {boolean}
-         */
-        function toggleComplete(taskId) {
-            const task = tasks.find(t => t.id === taskId);
-            if (!task) {
-                showError('Task not found');
-                return false;
-            }
-            
-            task.completed = !task.completed;
-            saveTasks();
-            
-            // Update UI
-            renderTasks();
-            
-            return true;
-        }
-        
-        /**
-         * Delete a task
-         * @param {string} taskId - Task ID
-         * @returns {boolean}
-         */
-        function deleteTask(taskId) {
-            const initialLength = tasks.length;
-            tasks = tasks.filter(t => t.id !== taskId);
-            
-            if (tasks.length === initialLength) {
-                showError('Task not found');
-                return false;
-            }
-            
-            saveTasks();
-            
-            // Update UI
-            renderTasks();
-            
-            return true;
-        }
-        
-        /**
-         * Save tasks to storage
-         * @returns {boolean}
-         */
-        function saveTasks() {
-            return StorageModule.setItem(STORAGE_KEY, tasks);
-        }
-        
-        /**
-         * Load tasks from storage
-         * @returns {array}
-         */
-        function loadTasks() {
-            tasks = StorageModule.getItem(STORAGE_KEY) || [];
-            return tasks;
-        }
-        
-        /**
-         * Get all tasks
-         * @returns {array}
-         */
-        function getAllTasks() {
-            return tasks;
-        }
-        
-        /**
-         * Get task count
-         * @returns {number}
-         */
-        function getTaskCount() {
-            return tasks.length;
-        }
-        
-        /**
-         * Get active task count
-         * @returns {number}
-         */
-        function getActiveTaskCount() {
-            return tasks.filter(t => !t.completed).length;
-        }
-        
-        /**
-         * Render tasks to DOM
-         */
+
+        function saveTasks() { StorageModule.setItem(STORAGE_KEY, tasks); }
+
+        function esc(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+
         function renderTasks() {
-            const taskList = document.getElementById('taskList');
-            const taskCount = document.getElementById('taskCount');
-            
-            taskList.innerHTML = '';
-            
+            const list  = document.getElementById('taskList');
+            const count = document.getElementById('taskCount');
+            list.innerHTML = '';
             tasks.forEach(task => {
                 const li = document.createElement('li');
-                li.className = `task-item ${task.completed ? 'completed' : ''}`;
+                li.className = 'task-item' + (task.completed ? ' completed' : '');
                 li.dataset.taskId = task.id;
-                
                 li.innerHTML = `
-                    <span class="task-description">${escapeHtml(task.description)}</span>
+                    <input type="checkbox" class="complete-toggle" ${task.completed ? 'checked' : ''} aria-label="Toggle complete">
+                    <span class="task-description">${esc(task.description)}</span>
                     <div class="task-actions">
-                        <button class="btn btn-icon complete-toggle" title="Toggle complete">
-                            ${task.completed ? '✔' : '○'}
-                        </button>
-                        <button class="btn btn-icon edit-task" title="Edit task">
-                            ✎
-                        </button>
-                        <button class="btn btn-icon delete-task" title="Delete task">
-                            ×
-                        </button>
-                    </div>
-                `;
-                
-                taskList.appendChild(li);
+                        <button class="delete-task">Delete</button>
+                    </div>`;
+                list.appendChild(li);
             });
-            
-            taskCount.textContent = getActiveTaskCount();
+            const active = tasks.filter(t => !t.completed).length;
+            count.textContent = active === 0 ? (tasks.length ? 'All done!' : '') : `${active} task${active !== 1 ? 's' : ''} remaining`;
         }
-        
-        /**
-         * Escape HTML special characters
-         * @param {string} text - Text to escape
-         * @returns {string}
-         */
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-        
-        /**
-         * Initialize task module
-         */
-        function initialize() {
-            loadTasks();
+
+        function addTask(desc) {
+            const err = validate(desc);
+            if (err) { showError(err); return null; }
+            if (tasks.length >= StorageModule.MAX_TASKS) { showError('Task limit reached (100).'); return null; }
+            const task = { id: uid(), description: desc.trim(), completed: false, createdAt: new Date().toISOString() };
+            tasks.push(task);
+            saveTasks();
             renderTasks();
-            
-            // Set up event listeners
-            document.getElementById('addTask').addEventListener('click', handleAddTask);
-            document.getElementById('taskInput').addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    handleAddTask();
-                }
+            return task;
+        }
+
+        function toggleComplete(id) {
+            const t = tasks.find(t => t.id === id);
+            if (!t) return;
+            t.completed = !t.completed;
+            saveTasks(); renderTasks();
+        }
+
+        function deleteTask(id) {
+            tasks = tasks.filter(t => t.id !== id);
+            saveTasks(); renderTasks();
+        }
+
+        function showError(msg) {
+            const el = document.getElementById('taskErrorArea');
+            el.textContent = msg;
+            setTimeout(() => el.textContent = '', 3000);
+        }
+
+        function initialize() {
+            renderTasks();
+
+            document.getElementById('addTask').addEventListener('click', handleAdd);
+            document.getElementById('taskInput').addEventListener('keypress', e => {
+                if (e.key === 'Enter') handleAdd();
             });
-            
-            // Event delegation for task actions
-            document.getElementById('taskList').addEventListener('click', handleTaskAction);
+            document.getElementById('taskList').addEventListener('click', handleAction);
         }
-        
-        /**
-         * Handle add task button click
-         */
-        function handleAddTask() {
-            const input = document.getElementById('taskInput');
-            const description = input.value;
-            
-            if (description.trim() === '') {
-                showError('Please enter a task description');
-                input.focus();
-                return;
-            }
-            
-            addTask(description);
-            input.value = '';
-            input.focus();
+
+        function handleAdd() {
+            const inp = document.getElementById('taskInput');
+            if (!inp.value.trim()) { showError('Please enter a task description.'); inp.focus(); return; }
+            if (addTask(inp.value)) { inp.value = ''; inp.focus(); }
         }
-        
-        /**
-         * Handle task action clicks
-         * @param {Event} e - Click event
-         */
-        function handleTaskAction(e) {
-            const taskItem = e.target.closest('.task-item');
-            if (!taskItem) return;
-            
-            const taskId = taskItem.dataset.taskId;
-            const action = e.target.classList.contains('complete-toggle') ? 'toggle' :
-                          e.target.classList.contains('edit-task') ? 'edit' :
-                          e.target.classList.contains('delete-task') ? 'delete' : null;
-            
-            if (action === 'toggle') {
-                toggleComplete(taskId);
-            } else if (action === 'edit') {
-                // TODO: Implement edit functionality
-                console.log('Edit task:', taskId);
-            } else if (action === 'delete') {
-                deleteTask(taskId);
-            }
+
+        function handleAction(e) {
+            const item = e.target.closest('.task-item');
+            if (!item) return;
+            const id = item.dataset.taskId;
+            if (e.target.type === 'checkbox' || e.target.classList.contains('complete-toggle')) toggleComplete(id);
+            else if (e.target.classList.contains('delete-task')) deleteTask(id);
         }
-        
-        /**
-         * Show error message
-         * @param {string} message - Error message
-         */
-        function showError(message) {
-            const errorArea = document.getElementById('taskErrorArea');
-            errorArea.textContent = message;
-            
-            // Clear error after 3 seconds
-            setTimeout(() => {
-                errorArea.textContent = '';
-            }, 3000);
-        }
-        
-        // Public API
-        return {
-            addTask: addTask,
-            editTask: editTask,
-            toggleComplete: toggleComplete,
-            deleteTask: deleteTask,
-            saveTasks: saveTasks,
-            loadTasks: loadTasks,
-            getAllTasks: getAllTasks,
-            getTaskCount: getTaskCount,
-            getActiveTaskCount: getActiveTaskCount,
-            renderTasks: renderTasks,
-            initialize: initialize
-        };
+
+        return { initialize };
     })();
 
     // ==================== Quick Link Module ====================
-    const QuickLinkModule = (function() {
+    const QuickLinkModule = (function () {
         const STORAGE_KEY = 'links';
-        
-        // Load links from storage
         let links = StorageModule.getItem(STORAGE_KEY) || [];
-        
-        /**
-         * Generate unique ID
-         * @returns {string}
-         */
-        function generateId() {
-            return Date.now().toString(36) + Math.random().toString(36).substr(2);
-        }
-        
-        /**
-         * Validate URL
-         * @param {string} url - URL to validate
-         * @returns {string|null} - Error message or null if valid
-         */
+
+        function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
+        function esc(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+
         function validateUrl(url) {
-            if (!url || url.trim() === '') {
-                return 'URL cannot be empty';
-            }
-            
+            if (!url || !url.trim()) return 'URL cannot be empty.';
             try {
-                const urlObj = new URL(url);
-                if (urlObj.protocol !== 'http:' && urlObj.protocol !== 'https:') {
-                    return 'URL must use http:// or https://';
-                }
-            } catch (e) {
-                return 'Invalid URL format';
-            }
-            
+                const u = new URL(url);
+                if (u.protocol !== 'http:' && u.protocol !== 'https:') return 'URL must start with http:// or https://';
+            } catch { return 'Invalid URL format.'; }
             return null;
         }
-        
-        /**
-         * Validate link label
-         * @param {string} label - Link label
-         * @returns {string|null} - Error message or null if valid
-         */
-        function validateLabel(label) {
-            if (!label || label.trim() === '') {
-                return 'Link label cannot be empty';
-            }
-            
-            return null;
-        }
-        
-        /**
-         * Add a new link
-         * @param {string} label - Link label
-         * @param {string} url - Link URL
-         * @returns {object|null} - Created link or null if failed
-         */
-        function addLink(label, url) {
-            // Validate label
-            const labelError = validateLabel(label);
-            if (labelError) {
-                showError(labelError);
-                return null;
-            }
-            
-            // Validate URL
-            const urlError = validateUrl(url);
-            if (urlError) {
-                showError(urlError);
-                return null;
-            }
-            
-            const link = {
-                id: generateId(),
-                label: label.trim(),
-                url: url.trim(),
-                createdAt: new Date().toISOString()
-            };
-            
-            links.push(link);
-            saveLinks();
-            
-            // Update UI
-            renderLinks();
-            
-            return link;
-        }
-        
-        /**
-         * Delete a link
-         * @param {string} linkId - Link ID
-         * @returns {boolean}
-         */
-        function deleteLink(linkId) {
-            const initialLength = links.length;
-            links = links.filter(l => l.id !== linkId);
-            
-            if (links.length === initialLength) {
-                showError('Link not found');
-                return false;
-            }
-            
-            saveLinks();
-            
-            // Update UI
-            renderLinks();
-            
-            return true;
-        }
-        
-        /**
-         * Open link in new tab
-         * @param {string} url - URL to open
-         */
-        function openLink(url) {
-            try {
-                window.open(url, '_blank');
-            } catch (e) {
-                showError('Failed to open link. Popup blocker may be enabled.');
-            }
-        }
-        
-        /**
-         * Save links to storage
-         * @returns {boolean}
-         */
-        function saveLinks() {
-            return StorageModule.setItem(STORAGE_KEY, links);
-        }
-        
-        /**
-         * Load links from storage
-         * @returns {array}
-         */
-        function loadLinks() {
-            links = StorageModule.getItem(STORAGE_KEY) || [];
-            return links;
-        }
-        
-        /**
-         * Get all links
-         * @returns {array}
-         */
-        function getAllLinks() {
-            return links;
-        }
-        
-        /**
-         * Get link count
-         * @returns {number}
-         */
-        function getLinkCount() {
-            return links.length;
-        }
-        
-        /**
-         * Truncate URL for display
-         * @param {string} url - URL to truncate
-         * @param {number} maxLength - Maximum length
-         * @returns {string}
-         */
-        function truncateUrl(url, maxLength = 25) {
-            if (url.length <= maxLength) {
-                return url;
-            }
-            return url.substring(0, maxLength) + '...';
-        }
-        
-        /**
-         * Render links to DOM
-         */
+
+        function saveLinks() { StorageModule.setItem(STORAGE_KEY, links); }
+
         function renderLinks() {
-            const linkList = document.getElementById('linkList');
-            const linkCount = document.getElementById('linkCount');
-            
-            linkList.innerHTML = '';
-            
+            const list  = document.getElementById('linkList');
+            const count = document.getElementById('linkCount');
+            list.innerHTML = '';
             links.forEach(link => {
                 const li = document.createElement('li');
                 li.className = 'link-item';
                 li.dataset.linkId = link.id;
-                
                 li.innerHTML = `
-                    <div class="link-info">
-                        <span class="link-label">${escapeHtml(link.label)}</span>
-                        <br>
-                        <span class="link-url">${truncateUrl(link.url)}</span>
-                    </div>
-                    <div class="link-actions">
-                        <button class="btn btn-icon open-link" title="Open link">
-                            ↗
-                        </button>
-                        <button class="btn btn-icon delete-link" title="Delete link">
-                            ×
-                        </button>
-                    </div>
-                `;
-                
-                linkList.appendChild(li);
+                    <button class="open-link" title="${esc(link.url)}">${esc(link.label)}</button>
+                    <button class="delete-link" aria-label="Delete ${esc(link.label)}">&#215;</button>`;
+                list.appendChild(li);
             });
-            
-            linkCount.textContent = getLinkCount();
+            count.textContent = links.length ? `${links.length} link${links.length !== 1 ? 's' : ''}` : '';
         }
-        
-        /**
-         * Escape HTML special characters
-         * @param {string} text - Text to escape
-         * @returns {string}
-         */
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
+
+        function addLink(label, url) {
+            if (!label.trim()) { showError('Link label cannot be empty.'); return null; }
+            const err = validateUrl(url);
+            if (err) { showError(err); return null; }
+            const link = { id: uid(), label: label.trim(), url: url.trim(), createdAt: new Date().toISOString() };
+            links.push(link);
+            saveLinks(); renderLinks();
+            return link;
         }
-        
-        /**
-         * Initialize quick link module
-         */
+
+        function deleteLink(id) {
+            links = links.filter(l => l.id !== id);
+            saveLinks(); renderLinks();
+        }
+
+        function showError(msg) {
+            const el = document.getElementById('linkErrorArea');
+            el.textContent = msg;
+            setTimeout(() => el.textContent = '', 3000);
+        }
+
         function initialize() {
-            loadLinks();
             renderLinks();
-            
-            // Set up event listeners
-            document.getElementById('addLink').addEventListener('click', handleAddLink);
-            document.getElementById('linkLabelInput').addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    document.getElementById('linkUrlInput').focus();
+            document.getElementById('addLink').addEventListener('click', handleAdd);
+            document.getElementById('linkLabelInput').addEventListener('keypress', e => {
+                if (e.key === 'Enter') { e.preventDefault(); document.getElementById('linkUrlInput').focus(); }
+            });
+            document.getElementById('linkUrlInput').addEventListener('keypress', e => {
+                if (e.key === 'Enter') handleAdd();
+            });
+            document.getElementById('linkList').addEventListener('click', e => {
+                const item = e.target.closest('.link-item');
+                if (!item) return;
+                const id = item.dataset.linkId;
+                if (e.target.classList.contains('open-link')) {
+                    const l = links.find(l => l.id === id);
+                    if (l) window.open(l.url, '_blank');
+                } else if (e.target.classList.contains('delete-link')) {
+                    deleteLink(id);
                 }
             });
-            document.getElementById('linkUrlInput').addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    handleAddLink();
-                }
-            });
-            
-            // Event delegation for link actions
-            document.getElementById('linkList').addEventListener('click', handleLinkAction);
         }
-        
-        /**
-         * Handle add link button click
-         */
-        function handleAddLink() {
-            const labelInput = document.getElementById('linkLabelInput');
-            const urlInput = document.getElementById('linkUrlInput');
-            const label = labelInput.value;
-            const url = urlInput.value;
-            
-            if (label.trim() === '') {
-                showError('Please enter a link label');
-                labelInput.focus();
-                return;
-            }
-            
-            if (url.trim() === '') {
-                showError('Please enter a URL');
-                urlInput.focus();
-                return;
-            }
-            
-            addLink(label, url);
-            labelInput.value = '';
-            urlInput.value = '';
-            labelInput.focus();
-        }
-        
-        /**
-         * Handle link action clicks
-         * @param {Event} e - Click event
-         */
-        function handleLinkAction(e) {
-            const linkItem = e.target.closest('.link-item');
-            if (!linkItem) return;
-            
-            const linkId = linkItem.dataset.linkId;
-            const action = e.target.classList.contains('open-link') ? 'open' :
-                          e.target.classList.contains('delete-link') ? 'delete' : null;
-            
-            if (action === 'open') {
-                const link = links.find(l => l.id === linkId);
-                if (link) {
-                    openLink(link.url);
-                }
-            } else if (action === 'delete') {
-                deleteLink(linkId);
+
+        function handleAdd() {
+            const lbl = document.getElementById('linkLabelInput');
+            const url = document.getElementById('linkUrlInput');
+            if (addLink(lbl.value, url.value)) {
+                lbl.value = ''; url.value = ''; lbl.focus();
             }
         }
-        
-        /**
-         * Show error message
-         * @param {string} message - Error message
-         */
-        function showError(message) {
-            const errorArea = document.getElementById('linkErrorArea');
-            errorArea.textContent = message;
-            
-            // Clear error after 3 seconds
-            setTimeout(() => {
-                errorArea.textContent = '';
-            }, 3000);
-        }
-        
-        // Public API
-        return {
-            addLink: addLink,
-            deleteLink: deleteLink,
-            openLink: openLink,
-            saveLinks: saveLinks,
-            loadLinks: loadLinks,
-            getAllLinks: getAllLinks,
-            getLinkCount: getLinkCount,
-            truncateUrl: truncateUrl,
-            renderLinks: renderLinks,
-            initialize: initialize
-        };
+
+        return { initialize };
     })();
 
-    // ==================== UI Module ====================
-    const UIModule = (function() {
-        /**
-         * Initialize UI module
-         */
+    // ==================== Settings Panel Module ====================
+    const SettingsPanelModule = (function () {
         function initialize() {
-            // Initialize all modules
-            TimeModule.initializeTimeTracking();
-            TimerModule.initialize();
-            TaskModule.initialize();
-            QuickLinkModule.initialize();
+            const btn   = document.getElementById('settingsBtn');
+            const panel = document.getElementById('settingsPanel');
+            const inp   = document.getElementById('customNameInput');
+            const save  = document.getElementById('saveNameBtn');
+
+            // Restore saved name
+            inp.value = SettingsModule.getName();
+
+            btn.addEventListener('click', () => {
+                panel.hidden = !panel.hidden;
+            });
+
+            save.addEventListener('click', () => {
+                SettingsModule.setName(inp.value);
+                TimeModule.updateDisplay(); // refresh greeting immediately
+                panel.hidden = true;
+            });
+
+            inp.addEventListener('keypress', e => {
+                if (e.key === 'Enter') save.click();
+            });
         }
-        
-        // Public API
-        return {
-            initialize: initialize
-        };
+        return { initialize };
     })();
 
-    // ==================== Main Initialization ====================
+    // ==================== Init ====================
     function init() {
-        // Initialize UI
-        UIModule.initialize();
-        
-        // Log initialization
-        console.log('Todo List Life Dashboard initialized');
+        ThemeModule.initialize();
+        TimeModule.initialize();
+        TimerModule.initialize();
+        TaskModule.initialize();
+        QuickLinkModule.initialize();
+        SettingsPanelModule.initialize();
     }
-    
-    // Expose init function globally
-    return {
-        init: init
-    };
+
+    return { init };
 })();
 
-// Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', TodoDashboard.init);
+

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,54 +7,88 @@
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    <header class="dashboard-header">
-        <div class="header-content">
-            <div class="date-display" id="dateDisplay">MM/DD/YYYY</div>
-            <div class="time-display" id="timeDisplay">HH:MM AM/PM</div>
-            <div class="greeting" id="greeting">Good Morning</div>
+    <div class="page-wrapper">
+
+        <!-- Header Card -->
+        <header class="card header-card">
+            <!-- Top-right controls -->
+            <div class="header-controls">
+                <button id="settingsBtn" class="icon-btn" title="Set your name" aria-label="Open name settings">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
+                        <circle cx="12" cy="8" r="4"/>
+                        <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+                    </svg>
+                </button>
+                <button id="themeToggle" class="icon-btn" title="Toggle dark mode" aria-label="Toggle dark mode">&#9790;</button>
+            </div>
+
+            <div class="time-display" id="timeDisplay">00:00:00</div>
+            <div class="date-display" id="dateDisplay">Loading...</div>
+            <div class="greeting"  id="greeting">Good Morning</div>
+        </header>
+
+        <!-- Settings Panel (hidden by default) -->
+        <div class="card settings-panel" id="settingsPanel" hidden>
+            <h2 class="card-title">Settings</h2>
+            <div class="settings-row">
+                <label for="customNameInput">Your name (used in greeting)</label>
+                <div class="settings-input-row">
+                    <input type="text" id="customNameInput" placeholder="e.g. Randi" maxlength="40">
+                    <button id="saveNameBtn" class="btn btn-primary">Save</button>
+                </div>
+            </div>
         </div>
-    </header>
 
-    <main class="dashboard-main">
-        <!-- Focus Timer Section -->
-        <section class="timer-section" aria-labelledby="timer-heading">
-            <h2 id="timer-heading" class="section-title">Focus Timer</h2>
-            <div class="timer-display" id="timerDisplay">25:00</div>
-            <div class="timer-controls">
-                <button type="button" id="startTimerBtn" class="btn btn-primary">Start</button>
-                <button type="button" id="stopTimerBtn" class="btn btn-secondary">Stop</button>
-                <button type="button" id="resetTimerBtn" class="btn btn-secondary">Reset</button>
+        <!-- Middle Row: Timer + Tasks -->
+        <div class="middle-row">
+
+            <!-- Focus Timer Card -->
+            <section class="card timer-card" aria-labelledby="timer-heading">
+                <h2 id="timer-heading" class="card-title">Focus Timer</h2>
+                <div class="timer-digits" id="timer">25:00</div>
+                <div class="timer-controls">
+                    <button type="button" id="startTimer" class="btn btn-primary">Start</button>
+                    <button type="button" id="stopTimer"  class="btn btn-outline">Stop</button>
+                    <button type="button" id="resetTimer" class="btn btn-outline">Reset</button>
+                </div>
+                <!-- Pomodoro duration setter -->
+                <div class="pomodoro-set">
+                    <label for="pomodoroDuration">Duration (min)</label>
+                    <input type="number" id="pomodoroDuration" min="1" max="120" value="25">
+                    <button id="setDurationBtn" class="btn btn-outline">Set</button>
+                </div>
+            </section>
+
+            <!-- Tasks Card -->
+            <section class="card tasks-card" aria-labelledby="tasks-heading">
+                <h2 id="tasks-heading" class="card-title">Tasks</h2>
+                <div class="task-input-row">
+                    <input type="text" id="taskInput" placeholder="Add a new task..." maxlength="255" aria-label="New task description">
+                    <button type="button" id="addTask" class="btn btn-primary">Add</button>
+                </div>
+                <div class="error-area" id="taskErrorArea" role="alert" aria-live="polite"></div>
+                <ul class="task-list" id="taskList" aria-label="Task list"></ul>
+                <div class="task-count" id="taskCount" aria-live="polite"></div>
+            </section>
+
+        </div>
+
+        <!-- Quick Links Card -->
+        <section class="card links-card" aria-labelledby="links-heading">
+            <h2 id="links-heading" class="card-title">Quick Links</h2>
+            <div class="link-input-row">
+                <input type="text" id="linkLabelInput" placeholder="Link name"  maxlength="100" aria-label="Link label">
+                <input type="text" id="linkUrlInput"   placeholder="URL"        maxlength="255" aria-label="Link URL">
+                <button type="button" id="addLink" class="btn btn-primary">Add Link</button>
             </div>
+            <div class="error-area" id="linkErrorArea" role="alert" aria-live="polite"></div>
+            <ul class="link-list" id="linkList" aria-label="Quick links list"></ul>
+            <div class="link-count" id="linkCount" aria-live="polite"></div>
         </section>
 
-        <!-- Task Management Section -->
-        <section class="task-section" aria-labelledby="tasks-heading">
-            <h2 id="tasks-heading" class="section-title">My Tasks</h2>
-            <div class="task-input-container">
-                <input type="text" id="taskInput" placeholder="Add a new task..." maxlength="255">
-                <button type="button" id="addTaskBtn" class="btn btn-primary">Add Task</button>
-            </div>
-            <ul class="task-list" id="taskList" aria-label="Task list">
-                <!-- Tasks will be rendered here -->
-            </ul>
-            <div class="task-count" id="taskCount">0 tasks</div>
-        </section>
-
-        <!-- Quick Links Section -->
-        <section class="quick-links-section" aria-labelledby="links-heading">
-            <h2 id="links-heading" class="section-title">Quick Links</h2>
-            <div class="link-input-container">
-                <input type="text" id="linkLabelInput" placeholder="Link label (e.g., Google)" maxlength="100">
-                <input type="text" id="linkUrlInput" placeholder="https://example.com" maxlength="255">
-                <button type="button" id="addLinkBtn" class="btn btn-primary">Add Link</button>
-            </div>
-            <ul class="link-list" id="linkList" aria-label="Quick links list">
-                <!-- Links will be rendered here -->
-            </ul>
-            <div class="link-count" id="linkCount">0 links</div>
-        </section>
-    </main>
-
+    </div>
     <script src="js/app.js"></script>
 </body>
 </html>
+
+
