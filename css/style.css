@@ -437,3 +437,27 @@ body {
     * { transition: none !important; }
 }
 
+/* ===== Layout override: main-grid (timer+links left | tasks right) ===== */
+.middle-row { display: none !important; }   /* hide old layout helper */
+
+.main-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    align-items: start;
+}
+
+.left-col {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* Tasks card fills the full height of the right column */
+.main-grid > .tasks-card {
+    align-self: stretch;
+}
+
+@media (max-width: 640px) {
+    .main-grid { grid-template-columns: 1fr; }
+}
